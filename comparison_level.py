@@ -77,6 +77,25 @@ class LevenshteinLevel(ComparisonLevel):
         # separate out the __str__ representation (for users) vs the actual SQL string that is used
 
 
+def sqlglot_translate(expr_str: str, from_dialect: Dialect, to_dialect: Dialect):
+    # not actually implemented here, but you get the idea
+    return f"{expr_str}<{to_dialect.name}>"
+
+
+# within a comparison any simple dictionaries get converted to this:
+class CustomLevel(ComparisonLevel):
+    def __init__(self, sql_expression: str, dialect: Dialect=None):
+        # allow dialect=None for backend-agnostic expressions
+        self._sql_expression = sql_expression
+        self._dialect = dialect
+    
+    def sql_expression(self, dialect: Dialect):
+        if dialect is None or dialect == self._dialect:
+            return self._sql_expression
+        # whatever sqlglot function does this kind of thing, where possible:
+        return sqlglot_translate(self._sql_expression, from_dialect=self._dialect, to_dialect=dialect)
+
+
 class Linker():
 
     def __init__(self, settings, dialect: Dialect):
@@ -105,3 +124,18 @@ except NotImplementedError as e:
     print(e)
 
 print(lev_lazy_level.available_backends())
+
+custom_lazy_level = CustomLevel("some sql expr", duckdb_dialect)
+
+settings = {"cl": custom_lazy_level}
+
+linker_ddb = Linker(settings, duckdb_dialect)
+linker_qdb = Linker(settings, quackdb_dialect)
+linker_edb = Linker(settings, echodb_dialect)
+
+linker_ddb.sql_expression
+linker_qdb.sql_expression
+try:
+    linker_edb.sql_expression
+except NotImplementedError as e:
+    print(e)
