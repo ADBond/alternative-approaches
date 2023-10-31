@@ -82,12 +82,12 @@ class ComparisonLevelBuilder(ABC):
     # This abstracts a user-based 'description' of a comparison level
     # this is what is represented on the user-side in json
     @abstractmethod
-    def _sql_expression(self, dialect: Dialect):
+    def _sql_expression(self):
         pass
 
     def sql_expression(self, dialect: Dialect):
         with dialect_context(self, dialect):
-            return self._sql_expression(dialect)
+            return self._sql_expression()
 
     @property
     def label(self, dialect=None):
@@ -107,6 +107,10 @@ class ComparisonLevelBuilder(ABC):
 
     def _get_dialected_name(self, col):
         return self.input_column(col, self._dialect).get_name_in_dialect()
+
+    @property
+    def dialect_properties(self):
+        return self._dialect 
 
     # really accessed via InputColumn more directly
     @property
@@ -144,8 +148,8 @@ class LevenshteinLevel(ComparisonLevelBuilder):
     def label(self, dialect=None):
         return f"Levenshtein <= {self.threshold}"
 
-    def _sql_expression(self, dialect: Dialect):
-        return f"{dialect.levenshtein_fn}({self.col_l}, {self.col_r}) <= {self.threshold}"
+    def _sql_expression(self):
+        return f"{self.dialect_properties.levenshtein_fn}({self.col_l}, {self.col_r}) <= {self.threshold}"
         # could have a placeholder eg <levenshtein_function_name> for printing in isolation, without a dialect set
         # separate out the __str__ representation (for users) vs the actual SQL string that is used
 
@@ -162,7 +166,8 @@ class CustomLevel(ComparisonLevelBuilder):
         self._raw_sql_expression = sql_expression
         self._cl_dialect = dialect
     
-    def _sql_expression(self, dialect: Dialect):
+    def _sql_expression(self):
+        dialect = self.dialect_properties
         if dialect is None or dialect == self._cl_dialect:
             return self._raw_sql_expression
         # whatever sqlglot function does this kind of thing, where possible:
