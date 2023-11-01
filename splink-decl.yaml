@@ -1,0 +1,105 @@
+# this does not directly affect the running of Splink
+meta:
+  # for tooling/validation:
+  schema: /link/to/schema
+  # so that I have a record of where this has come from
+  schema-version: 1.1
+  splink-version: 5.3.1
+  # allow me to keep track of my model changes
+  model-version: 1.1
+# stuff to do with how splink deals with things that don't directly affect the core logic
+splink-config:
+  # custom column setup
+  bayes_factor_column_prefix: "_bf__"
+  term_frequency_adjustment_column_prefix: "_TF__"
+  comparison_vector_value_column_prefix: "_CVV__"
+  unique_id_column_name: record_uid
+  source_dataset_column_name: record_source
+  # what do we keep?
+  retain_matching_columns: true
+  retain_intermediate_calculation_columns: true
+  additional_columns_to_retain: 
+    - previous_estimated_cluster
+    - dataset_version
+# where do we find the data, and what are we doing with it?
+datasets:
+  tables:
+    - main_data_table
+    - scraped_records
+    - "local/data/set.csv"
+  link-type: link_and_dedupe
+
+model-spec:
+  comparisons:
+    - output_column_name: name
+      comparison_description: Full name with fuzzy levels
+      comparison_levels:
+        - type: null_level
+          column_name: full_name
+        - type: exact_match_level
+          column_name: full_name
+        - type: levenshtein_level
+          column_name: full_name
+          threshold: 3
+        - type: custom_level
+          sql_expression: "some_fuzzy_func(full_name_l, full_name_r)"
+        - type: else_level
+    - output_column_name: dob
+      comparison_description: DOB with datediff levels
+      comparison_levels:
+        - type: null_level
+          column_name: dob
+        - type: exact_match_level
+          column_name: dob
+        - type: datediff_level
+          column_name: dob
+          date_format: "YYYY-MM-DD"
+          threshold:
+            - quantity: 1
+              unit: day
+        - type: datediff_level
+          column_name: dob
+          date_format: "YYYY-MM-DD"
+          threshold:
+            - quantity: 10
+              unit: day
+        - type: else_level
+    - output_column_name: city
+      comparison_description: Exact match vs non-match city
+      comparison_levels:
+        - type: null_level
+          column_name: city
+        - type: exact_match_level
+          column_name: city
+        - type: else_level
+    - output_column_name: gender
+      comparison_description: Exact match vs non-match gender
+      comparison_levels:
+        - type: null_level
+          column_name: gender
+        - type: exact_match_level
+          column_name: gender
+        - type: else_level
+
+blocking_rules_to_generate_predictions:
+  - "l.full_name = r.full_name"
+  - "l.city = r.city AND l.dob = r.dob"
+  - "l.gender = r.gender AND l.surname = r.surname"
+  # and/or autoblocking specs
+
+probability_two_random_records_match: 0.000003176
+training-spec:
+  max_iterations: 30
+  em_convergence: 0.001
+  lambda_estimation:
+    true_match_rules:
+      - "l.full_name = r.full_name AND l.dob = r.dob"
+    recall_estimation: 0.6
+  estimate_u_configuration:
+    - max_pairs: 1e8
+    - seed: 4333
+  em_training_blocks_sql:
+    - sql: "l.full_name = r.full_name"
+      estimate_without_term_frequencies: true
+    - sql: "l.dob = r.dob"
+    - sql: "l.city = r.city AND l.gender = r.gender"
