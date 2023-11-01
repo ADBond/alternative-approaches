@@ -7,6 +7,7 @@ meta:
   splink-version: 5.3.1
   # allow me to keep track of my model changes
   model-version: 1.1
+  date-last-run: 2023-11-31
 # stuff to do with how splink deals with things that don't directly affect the core logic
 splink-config:
   # custom column setup
@@ -38,11 +39,24 @@ model-spec:
           column_name: full_name
         - type: exact_match_level
           column_name: full_name
+          config:
+            - tf_adjustment_column: full_name
+            - tf_adjustment_weight: 0.98
+            - tf_minimum_u_value: 0.0001
+          parameters:
+            m_probability:
+              - 0.9
+              - 0.86
+              - 0.6
+            u_probability:
+              - 0.04
         - type: levenshtein_level
           column_name: full_name
           threshold: 3
         - type: custom_level
-          sql_expression: "some_fuzzy_func(full_name_l, full_name_r)"
+          sql_expression: "some_fuzzy_func(full_name_l, full_name_r) < 0.812"
+          config:
+            label_for_charts: "Fuzzy full name < 0.812"
         - type: else_level
     - output_column_name: dob
       comparison_description: DOB with datediff levels
@@ -71,6 +85,8 @@ model-spec:
           column_name: city
         - type: exact_match_level
           column_name: city
+          config:
+            - tf_adjustment_column: city
         - type: else_level
     - output_column_name: gender
       comparison_description: Exact match vs non-match gender
@@ -79,7 +95,21 @@ model-spec:
           column_name: gender
         - type: exact_match_level
           column_name: gender
+          parameters:
+            m_probability:
+              - 0.9
+              - 0.7
+            u_probability:
+              - 0.48
+              - 0.3
         - type: else_level
+          parameters:
+            m_probability:
+              - 0.1
+              - 0.3
+            u_probability:
+              - 0.52
+              - 0.7
 
 blocking_rules_to_generate_predictions:
   - "l.full_name = r.full_name"
