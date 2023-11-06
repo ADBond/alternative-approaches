@@ -21,5 +21,9 @@ class SparkAPI(DatabaseAPI):
 
 
 if __name__ == "__main__":
-    DuckDBAPI(3, 4, thing="spling")
-    SparkAPI(5, 4, 2, thing="splingo", spark="spark")
+    DatabaseAPI.from_str("duckdb", 3, 4, thing="spling")
+    DatabaseAPI.from_str("spark", 5, 4, 2, thing="splingo", spark="spark")
+    try:
+        DatabaseAPI.from_str("invalid_backend", 5, 4, 2, thing="splingo", spark="spark")
+    except ValueError as e:
+        print(e)
