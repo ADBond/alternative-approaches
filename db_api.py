@@ -13,6 +13,10 @@ class DatabaseAPI:
         )
         return subclass(*args, **kwargs)
 
+# user-facing:
+def db_api(backend_str, *args, **kwargs):
+    return DatabaseAPI.from_str(backend_str, *args, **kwargs)
+
 class DuckDBAPI(DatabaseAPI):
     _name_for_factory = "duckdb"
 
@@ -21,9 +25,9 @@ class SparkAPI(DatabaseAPI):
 
 
 if __name__ == "__main__":
-    DatabaseAPI.from_str("duckdb", 3, 4, thing="spling")
-    DatabaseAPI.from_str("spark", 5, 4, 2, thing="splingo", spark="spark")
+    db_api("duckdb", 3, 4, thing="spling")
+    db_api("spark", 5, 4, 2, thing="splingo", spark="spark")
     try:
-        DatabaseAPI.from_str("invalid_backend", 5, 4, 2, thing="splingo", spark="spark")
+        db_api("invalid_backend", 5, 4, 2, thing="splingo", spark="spark")
     except ValueError as e:
         print(e)
