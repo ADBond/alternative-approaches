@@ -1,10 +1,28 @@
 from abc import ABC, abstractmethod
-from random import choice
-from typing import overload, Literal, Type, final
+from random import choice, seed
+from typing import overload, Literal, Type
 
 
 class SomeException(Exception):
     pass
+
+def log_and_run_with_try(some_func):
+    """
+    logging and error handling for running SQL. This should call _directly_execute_sql
+    in turn this should only ever be called by _execute_sql_to_make_table
+    """
+    def wrapper(self, final_sql, templated_name, physical_name):
+        # aka _log_and_run_sql_execution
+        print(f"log some stuff for {templated_name} aka {physical_name}")
+        print("not actually making that table here, mind")
+        try:
+            some_func(self, final_sql)
+        except SomeException as e:
+            print(f"\t\tERROR: {e}")
+        else:
+            print("\t\tno errors on this occasion :)")
+
+    return wrapper
 
 class DatabaseAPI(ABC):
     """
@@ -26,24 +44,10 @@ class DatabaseAPI(ABC):
         )
         return subclass
 
-    @final
-    def _log_and_execute_sql(
-        self, final_sql: str, templated_name: str, physical_name: str
-    ):
-        """
-        logging and error handling for running SQL. This should call _directly_execute_sql
-        in turn this should only ever be called by _execute_sql_to_make_table
-        """
-        # aka _log_and_run_sql_execution
-        print(f"log some stuff for {templated_name} aka {physical_name}")
-        print("not actually making that table here, mind")
-        try:
-            self._directly_execute_sql(final_sql)
-        except SomeException as e:
-            print(e)
-        else:
-            print("no errors on this occasion :)")
-
+    @abstractmethod
+    def _delete_table_from_database(self, name):
+        pass
+    
     @abstractmethod
     def _directly_execute_sql(self, final_sql):
         """
@@ -64,7 +68,7 @@ class DatabaseAPI(ABC):
 
         print("making a table")
         create_table_sql = f"CREATE TABLE {physical_name} AS ({final_sql})"
-        self._log_and_execute_sql(create_table_sql, templated_name, physical_name)
+        self._directly_execute_sql(create_table_sql, templated_name, physical_name)
 
         return f"frame for {physical_name}"
 
@@ -83,18 +87,16 @@ class DuckDBAPI(DatabaseAPI):
         """how to make a duck"""
         self._con = ddb_connection
 
+    @log_and_run_with_try
     def _directly_execute_sql(self, final_sql):
-        if choice(range(3)) == 1:
+        if choice(range(2)) != 1:
             # normal execution
-            print(f"actually executing SQL in duckdb [{self._con}]: {final_sql}")
+            print(f"\tactually executing SQL in duckdb [{self._con}]: {final_sql}")
         else:
             raise SomeException(f"the SQL [{final_sql}] failed")
 
-    def _table_exists_in_database(self, table_name):
-        return True
-
     def _delete_table_from_database(self, name):
-        print("dropping table")
+        print("\ndropping table")
 
     def export_to_duckdb_file(self, output_path, delete_intermediate_tables=False):
         print("duckdb stuff")
@@ -103,8 +105,19 @@ class DuckDBAPI(DatabaseAPI):
 class SparkAPI(DatabaseAPI):
     """num tum rum etc explanations for Spark"""
     _name_for_factory = "spark"
-    def __init__(self, num, tum, rum, thing=None, spark="spork"):
-        print(f"{num=}, {tum=}, {rum=}, {thing=}")
+    def __init__(self, spark, num_partitions_on_repartition=None):
+        self._spark = spark
+
+    @log_and_run_with_try
+    def _directly_execute_sql(self, final_sql):
+        if choice(range(2)) != 1:
+            # normal execution
+            print(f"\tactually executing SQL in spark [{self._spark}]: {final_sql}")
+        else:
+            raise SomeException(f"the SQL [{final_sql}] failed")
+        
+    def _delete_table_from_database(self, name):
+        print("\ndropping table in a sparky way")
 
 @overload
 def db_api(backend_str: Literal["duckdb"]) -> Type[DuckDBAPI]:
@@ -121,9 +134,13 @@ def db_api(backend_str: str) -> Type[DatabaseAPI]:
 
 
 if __name__ == "__main__":
+    seed(1402)
     dk = db_api("duckdb")("dbfile.db")
     table = dk.execute_sql_to_make_table("SOMESQL", "splink_name", "tablename")
-    print(table)
-    dk.execute_sql_to_make_table("SOMESQL", "splink_name", "tablename")
-    dk.execute_sql_to_make_table("SOMESQL", "splink_name", "tablename")
-    dk.execute_sql_to_make_table("SOMESQL", "splink_name", "tablename")
+
+    dk.execute_sql_to_make_table("SOMESQL", "splink_name2", "tablename")
+    dk.execute_sql_to_make_table("SOMESQL", "splink_name3", "tablename")
+    dk.execute_sql_to_make_table("SOMESQL", "splink_name4", "tablename")
+
+    spk = db_api("spark")("sparkinstance")
+    spk.execute_sql_to_make_table("SOMESPARKSQL", "splink_spk_", "tablename2")
