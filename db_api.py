@@ -1,6 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from random import choice, seed
-from typing import overload, Literal, Type
+from typing import overload, Literal, Type, final
 
 
 class SomeException(Exception):
@@ -69,20 +69,29 @@ class DatabaseAPI(metaclass=WrapSQLExecutionMeta):
         # aka _run_sql_execution
         pass
 
-    def _execute_sql_to_make_table(self, final_sql, templated_name, physical_name):
+    def _setup_for_execute_sql(self, final_sql, templated_name, physical_name):
         """
-        this is what we call to make a table via some SQL
-        subclasses can override if they need to do special processing,
-        but this default implementation should suffice for simple backends
+        customise this per backend if needed
         """
-        # aka _execute_sql_against_backend
         self._delete_table_from_database(physical_name)
 
         print("making a table")
-        create_table_sql = f"CREATE TABLE {physical_name} AS ({final_sql})"
-        self._directly_execute_sql(create_table_sql, templated_name, physical_name)
+        return f"CREATE TABLE {physical_name} AS ({final_sql})"
 
-        return f"frame for {physical_name}"
+    def _cleanup_for_execute_sql(self, frame):
+        """
+        customise this per backend if needed
+        """
+        return f"frame for {frame}"
+
+    @final
+    def _execute_sql_to_make_table(self, final_sql, templated_name, physical_name):
+        # aka _execute_sql_against_backend
+        create_table_sql = self._setup_for_execute_sql(final_sql, templated_name, physical_name)
+        frame = self._directly_execute_sql(create_table_sql, templated_name, physical_name)
+        splink_df = self._cleanup_for_execute_sql(frame)
+
+        return splink_df
 
 class DuckDBAPI(DatabaseAPI):
     """
@@ -125,9 +134,15 @@ class SparkAPI(DatabaseAPI):
             print(f"\tactually executing SQL in spark [{self._spark}]: {final_sql}")
         else:
             raise SomeException(f"the SQL [{final_sql}] failed")
-        
+
     def _delete_table_from_database(self, name):
         print("\ndropping table in a sparky way")
+
+    def _setup_for_execute_sql(self, final_sql, templated_name, physical_name):
+        self._delete_table_from_database(physical_name)
+
+        print("making a spark table")
+        return f"CREATE TABLE {physical_name} AS ({final_sql})"
 
 @overload
 def db_api(backend_str: Literal["duckdb"]) -> Type[DuckDBAPI]:
