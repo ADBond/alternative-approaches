@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABCMeta, abstractmethod
 from random import choice, seed
 from typing import overload, Literal, Type
 
@@ -6,25 +6,35 @@ from typing import overload, Literal, Type
 class SomeException(Exception):
     pass
 
-def log_and_run_with_try(some_func):
+def log_and_run_with_try(execute_sql_func):
     """
     logging and error handling for running SQL. This should call _directly_execute_sql
-    in turn this should only ever be called by _execute_sql_to_make_table
+    in turn this should only ever be called by __execute_sql_to_make_table
+    supersedes _log_and_run_sql_execution
     """
-    def wrapper(self, final_sql, templated_name, physical_name):
+    def log_and_run_sql_with_error_handling(self, final_sql, templated_name, physical_name):
         # aka _log_and_run_sql_execution
         print(f"log some stuff for {templated_name} aka {physical_name}")
         print("not actually making that table here, mind")
         try:
-            some_func(self, final_sql)
+            execute_sql_func(self, final_sql)
         except SomeException as e:
             print(f"\t\tERROR: {e}")
         else:
             print("\t\tno errors on this occasion :)")
 
-    return wrapper
+    return log_and_run_sql_with_error_handling
 
-class DatabaseAPI(ABC):
+class WrapSQLExecutionMeta(ABCMeta):
+    def __new__(cls, clsname, bases, attrs):
+        # wrap class '_directly_execute_sql' with log_and_run_with_try
+        # all subclasses will then have this method automatically decorated
+        attrs["_directly_execute_sql"] = log_and_run_with_try(attrs["_directly_execute_sql"])
+
+        return super().__new__(cls, clsname, bases, attrs)
+
+
+class DatabaseAPI(metaclass=WrapSQLExecutionMeta):
     """
     just stuff for interacting with db
     probably better if we can keep stuff to do with writing SQL elsewhere
@@ -52,12 +62,14 @@ class DatabaseAPI(ABC):
     def _directly_execute_sql(self, final_sql):
         """
         this should be literally the only thing that ever touches the db
-        the only thing that should use this is _log_and_run_sql_execution
+        this is not directly accessible, and is automatically wrapped
+        with logging + error handling
+        Main thing that subclasses need to implement
         """
         # aka _run_sql_execution
         pass
 
-    def execute_sql_to_make_table(self, final_sql, templated_name, physical_name):
+    def _execute_sql_to_make_table(self, final_sql, templated_name, physical_name):
         """
         this is what we call to make a table via some SQL
         subclasses can override if they need to do special processing,
@@ -87,7 +99,6 @@ class DuckDBAPI(DatabaseAPI):
         """how to make a duck"""
         self._con = ddb_connection
 
-    @log_and_run_with_try
     def _directly_execute_sql(self, final_sql):
         if choice(range(2)) != 1:
             # normal execution
@@ -108,7 +119,6 @@ class SparkAPI(DatabaseAPI):
     def __init__(self, spark, num_partitions_on_repartition=None):
         self._spark = spark
 
-    @log_and_run_with_try
     def _directly_execute_sql(self, final_sql):
         if choice(range(2)) != 1:
             # normal execution
@@ -136,11 +146,11 @@ def db_api(backend_str: str) -> Type[DatabaseAPI]:
 if __name__ == "__main__":
     seed(1402)
     dk = db_api("duckdb")("dbfile.db")
-    table = dk.execute_sql_to_make_table("SOMESQL", "splink_name", "tablename")
+    table = dk._execute_sql_to_make_table("SOMESQL", "splink_name", "tablename")
 
-    dk.execute_sql_to_make_table("SOMESQL", "splink_name2", "tablename")
-    dk.execute_sql_to_make_table("SOMESQL", "splink_name3", "tablename")
-    dk.execute_sql_to_make_table("SOMESQL", "splink_name4", "tablename")
+    dk._execute_sql_to_make_table("SOMESQL", "splink_name2", "tablename")
+    dk._execute_sql_to_make_table("SOMESQL", "splink_name3", "tablename")
+    dk._execute_sql_to_make_table("SOMESQL", "splink_name4", "tablename")
 
     spk = db_api("spark")("sparkinstance")
-    spk.execute_sql_to_make_table("SOMESPARKSQL", "splink_spk_", "tablename2")
+    spk._execute_sql_to_make_table("SOMESPARKSQL", "splink_spk_", "tablename2")
