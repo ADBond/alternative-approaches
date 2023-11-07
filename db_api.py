@@ -1,5 +1,10 @@
 from abc import ABC, abstractmethod
+from random import choice
 from typing import overload, Literal, Type, final
+
+
+class SomeException(Exception):
+    pass
 
 class DatabaseAPI(ABC):
     """
@@ -32,8 +37,12 @@ class DatabaseAPI(ABC):
         # aka _log_and_run_sql_execution
         print(f"log some stuff for {templated_name} aka {physical_name}")
         print("not actually making that table here, mind")
-        self._directly_execute_sql(final_sql)
-        print("no errors on this occasion :)")
+        try:
+            self._directly_execute_sql(final_sql)
+        except SomeException as e:
+            print(e)
+        else:
+            print("no errors on this occasion :)")
 
     @abstractmethod
     def _directly_execute_sql(self, final_sql):
@@ -75,7 +84,11 @@ class DuckDBAPI(DatabaseAPI):
         self._con = ddb_connection
 
     def _directly_execute_sql(self, final_sql):
-        print(f"actually executing SQL in duckdb [{self._con}]: {final_sql}")
+        if choice(range(3)) == 1:
+            # normal execution
+            print(f"actually executing SQL in duckdb [{self._con}]: {final_sql}")
+        else:
+            raise SomeException(f"the SQL [{final_sql}] failed")
 
     def _table_exists_in_database(self, table_name):
         return True
@@ -111,3 +124,6 @@ if __name__ == "__main__":
     dk = db_api("duckdb")("dbfile.db")
     table = dk.execute_sql_to_make_table("SOMESQL", "splink_name", "tablename")
     print(table)
+    dk.execute_sql_to_make_table("SOMESQL", "splink_name", "tablename")
+    dk.execute_sql_to_make_table("SOMESQL", "splink_name", "tablename")
+    dk.execute_sql_to_make_table("SOMESQL", "splink_name", "tablename")
